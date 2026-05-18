@@ -580,9 +580,15 @@
 <script>
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
+const BOOST_CONTRACT = "0x7b61e55f4e0e27a5ed0517ddcf14d88a8d48deea";
+
 const ERC20_ABI = [
-  "function transfer(address to,uint256 amount) returns (bool)",
-  "function decimals() view returns (uint8)"
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)"
+];
+
+const BOOST_CONTRACT_ABI = [
+  "function burn(uint256 amount) external"
 ];
 
 let provider, signer, account;
@@ -794,6 +800,9 @@ This signature does not authorize any transaction or token transfer.`;
 async function burnWLD() {
   if (!signer || !account) { alert("Connect wallet first."); return; }
   if (!lastBoostProof || !lastBoostProof.signature_valid_locally) { alert("Sign the ownership proof first."); return; }
+  if (BOOST_CONTRACT === "PASTE_DEPLOYED_CONTRACT_ADDRESS_HERE") {
+    alert("Smart contract not yet deployed. Contact the site owner."); return;
+  }
   const amountText = document.getElementById("burnAmount").value.trim();
   if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
   try {
@@ -802,14 +811,25 @@ async function burnWLD() {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet and try again.");
       return;
     }
-    const token = new ethers.Contract(WLD, ERC20_ABI, signer);
     const amount = ethers.parseUnits(amountText, 18);
-    updateBoostStatusText("Sending burn transaction…");
-    const tx = await token.transfer(DEAD, amount);
+    const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
+    const boostContract = new ethers.Contract(BOOST_CONTRACT, BOOST_CONTRACT_ABI, signer);
+
+    // Check existing allowance — skip approve if already sufficient
+    const allowance = await wld.allowance(account, BOOST_CONTRACT);
+    if (allowance < amount) {
+      updateBoostStatusText("Step 1/2: Approving WLD spend… (confirm in MetaMask)");
+      const approveTx = await wld.approve(BOOST_CONTRACT, amount);
+      await approveTx.wait(1);
+    }
+
+    // Single contract call — splits 90/10 atomically
+    updateBoostStatusText("Step 2/2: Burning WLD… (confirm in MetaMask)");
+    const tx = await boostContract.burn(amount);
     lastBoostProof = {
       ...lastBoostProof,
       tx_hash: tx.hash,
-      claimed_burn_amount_wld: amountText,
+      claimed_burn_amount_wld: (Number(amountText) * 0.9).toFixed(6),
       token_contract: WLD,
       burn_address: DEAD,
       chain: "Ethereum mainnet",
@@ -827,6 +847,8 @@ async function burnWLD() {
     };
     saveBoostProof();
     updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + tx.hash);
+    document.getElementById("stepBurn").classList.add("done");
+    document.getElementById("checkBurnText").textContent = (Number(amountText) * 0.9).toFixed(6) + " WLD burned";
     document.getElementById("checkBurn").classList.add("visible");
   } catch (err) {
     updateBoostStatusText("Burn failed: " + (err?.message || String(err)));
