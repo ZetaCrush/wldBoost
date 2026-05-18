@@ -721,7 +721,10 @@ async function connectWallet() {
     signer = await provider.getSigner();
     account = await signer.getAddress();
     const net = await provider.getNetwork();
-    if (Number(net.chainId) !== 1) alert("Please switch MetaMask to Ethereum mainnet.");
+    if (Number(net.chainId) !== 1) {
+      updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet.");
+      return;
+    }
     const pill = document.getElementById("walletPill");
     pill.textContent = shortAddr(account);
     pill.classList.add("connected");
@@ -778,8 +781,14 @@ async function burnWLD() {
   const amountText = document.getElementById("burnAmount").value.trim();
   if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
   try {
+    // Verify mainnet before attempting anything
+    const net = await provider.getNetwork();
+    if (Number(net.chainId) !== 1) {
+      updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet and try again.");
+      return;
+    }
     const token = new ethers.Contract(WLD, ERC20_ABI, signer);
-    const decimals = await token.decimals();
+    const decimals = 18; // WLD is standard 18-decimal ERC-20; hardcoded to avoid RPC call
     const amount = ethers.parseUnits(amountText, decimals);
     updateBoostStatusText("Sending burn transaction…");
     const tx = await token.transfer(DEAD, amount);
