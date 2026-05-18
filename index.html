@@ -723,7 +723,7 @@ function closeAboutModal() { document.getElementById("aboutModal").style.display
 async function connectWallet() {
   if (!window.ethereum) { alert("MetaMask not found"); return; }
   try {
-    provider = new ethers.BrowserProvider(window.ethereum);
+    provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
     signer = await provider.getSigner();
     const newAccount = await signer.getAddress();
@@ -778,7 +778,7 @@ Issued At: ${issuedAt}
 
 This signature does not authorize any transaction or token transfer.`;
     const signature = await signer.signMessage(message);
-    const recoveredAddress = ethers.verifyMessage(message, signature);
+    const recoveredAddress = ethers.utils.verifyMessage(message, signature);
     lastBoostProof = {
       ...(lastBoostProof || {}),
       wallet_address: account,
@@ -811,13 +811,13 @@ async function burnWLD() {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet and try again.");
       return;
     }
-    const amount = ethers.parseUnits(amountText, 18);
+    const amount = ethers.utils.parseUnits(amountText, 18);
     const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
     const boostContract = new ethers.Contract(BOOST_CONTRACT, BOOST_CONTRACT_ABI, signer);
 
     // Check existing allowance — skip approve if already sufficient
     const allowance = await wld.allowance(account, BOOST_CONTRACT);
-    if (allowance < amount) {
+    if (allowance.lt(amount)) {
       updateBoostStatusText("Step 1/2: Approving WLD spend… (confirm in MetaMask)");
       const approveTx = await wld.approve(BOOST_CONTRACT, amount);
       await approveTx.wait(1);
