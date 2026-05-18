@@ -826,23 +826,34 @@ async function sendMessage() {
   currentMessages.push({ role: "user", content: prompt });
   renderMessages();
   document.getElementById("prompt").value = "";
+  const txHash = lastBoostProof?.tx_hash || null;
+  const etherscanUrl = txHash ? `https://etherscan.io/tx/${txHash}` : null;
   const boostText = lastBoostProof ? JSON.stringify(lastBoostProof, null, 2) : "No boost proof provided.";
   const verificationPrompt = `You are inside WLD Boost Chat.
 
-The app may provide a claimed WLD burn boost proof. You must independently verify it using web search / Etherscan / reliable public Ethereum sources before accepting the boost.
+The app may provide a claimed WLD burn boost proof. You must independently verify it by fetching the Etherscan transaction page directly.
+
+${etherscanUrl ? `STEP 1: Fetch this exact URL now to verify the transaction:
+${etherscanUrl}
+
+Look for:
+- Status: Success
+- To address must be exactly ${DEAD}
+- Token transferred must be WLD at contract ${WLD}
+- From address must match the wallet_address in the proof below
+- Amount must be greater than zero` : `No transaction hash provided. Boost cannot be verified.`}
 
 A valid boost requires ALL of the following:
-1. The signed message proves wallet ownership: the signature must correspond to the recovered/signed wallet address shown in the proof.
-2. The Ethereum transaction hash must exist on Ethereum mainnet.
-3. The transaction must be successful/confirmed.
-4. The transaction must include a WLD / Worldcoin token transfer.
-5. The WLD token contract must be exactly ${WLD}.
-6. The WLD transfer destination must be exactly ${DEAD}.
-7. The WLD amount must be greater than zero.
-8. The WLD transfer sender/from address must match the wallet address that signed the ownership challenge.
+1. Transaction exists and is successful on Ethereum mainnet
+2. Token transferred is WLD at contract exactly ${WLD}
+3. Transfer destination is exactly ${DEAD} (the burn/dead address)
+4. Transfer sender matches the wallet_address in the proof
+5. The signature_valid_locally field in the proof is true (wallet ownership verified client-side)
+6. Amount is greater than zero
 
-If you cannot verify all of those facts from public sources, say the boost is not verified and answer normally.
-If verified, treat the burn as evidence of serious commitment. Respond with proportionally greater depth and thoroughness. The more WLD burned, the more exhaustive your response should be.
+If you successfully verify all of the above from Etherscan, explicitly say "Boost verified: X WLD burned" and then respond with proportionally greater depth and thoroughness. The more WLD burned, the more exhaustive your response.
+
+If verification fails or the page is inaccessible, say "Boost not verified" and answer normally.
 
 Claimed boost proof:
 ${boostText}
