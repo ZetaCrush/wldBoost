@@ -639,13 +639,18 @@ function updateBoostStatus() {
     fab.classList.remove("active");
     return;
   }
-  if (lastBoostProof.burn_tx_confirmed_locally) {
-    el.textContent = "✓ Boost active\n\nTx: " + lastBoostProof.tx_hash + "\nBlock: " + lastBoostProof.block_number + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD\nConfirmed: " + lastBoostProof.confirmed_at;
+  if (lastBoostProof.onchain_verified) {
+    el.textContent = "✓ Boost verified on-chain\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD\nConfirmed: " + lastBoostProof.confirmed_at;
     el.classList.add("confirmed");
     fab.classList.add("active");
-  } else {
-    el.textContent = JSON.stringify(lastBoostProof, null, 2);
+  } else if (lastBoostProof.burn_tx_confirmed_locally) {
+    el.textContent = "Burn confirmed locally, verifying on-chain…\n\nTx: " + lastBoostProof.tx_hash;
     el.classList.remove("confirmed");
+    fab.classList.remove("active");
+  } else {
+    el.textContent = "No active boost. Complete the steps above.";
+    el.classList.remove("confirmed");
+    fab.classList.remove("active");
   }
 }
 
@@ -796,14 +801,13 @@ async function burnWLD() {
   const amountText = document.getElementById("burnAmount").value.trim();
   if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
   try {
-    // Verify mainnet before attempting anything
     const net = await provider.getNetwork();
     if (Number(net.chainId) !== 1) {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet and try again.");
       return;
     }
     const token = new ethers.Contract(WLD, ERC20_ABI, signer);
-    const decimals = 18; // WLD is standard 18-decimal ERC-20; hardcoded to avoid RPC call
+    const decimals = 18;
     const amount = ethers.parseUnits(amountText, decimals);
     updateBoostStatusText("Sending burn transaction…");
     const tx = await token.transfer(DEAD, amount);
@@ -826,9 +830,58 @@ async function burnWLD() {
       confirmed_at: new Date().toISOString()
     };
     saveBoostProof();
+    // Verify once now at burn time using the API
+    updateBoostStatusText("Verifying burn on Etherscan…");
+    await verifyBoostOnce();
     document.getElementById("checkBurn").classList.add("visible");
   } catch (err) {
     updateBoostStatusText("Burn failed: " + (err?.message || String(err)));
+  }
+}
+
+async function verifyBoostOnce() {
+  const apiKey = document.getElementById("apiKey").value.trim();
+  if (!apiKey || !lastBoostProof?.tx_hash) return;
+  const etherscanUrl = `https://etherscan.io/tx/${lastBoostProof.tx_hash}`;
+  const verifyPrompt = `Fetch this Etherscan URL and verify the WLD burn transaction:
+${etherscanUrl}
+
+Confirm ALL of the following and respond with ONLY a JSON object, no markdown:
+{
+  "verified": true or false,
+  "status": "Success" or other,
+  "from": "address found",
+  "to": "address found",
+  "token_contract": "contract address found",
+  "amount_wld": "amount found",
+  "matches_wallet": true or false (does "from" match ${lastBoostProof.wallet_address}?),
+  "matches_dead": true or false (does "to" match ${DEAD}?),
+  "matches_wld_contract": true or false (does token contract match ${WLD}?)
+}`;
+  try {
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
+      body: JSON.stringify({ model: "gpt-5.5", tools: [{ type: "web_search_preview" }], input: verifyPrompt })
+    });
+    const data = await res.json();
+    const text = extractResponseText(data).replace(/```json|```/g, "").trim();
+    let result;
+    try { result = JSON.parse(text); } catch { return; }
+    lastBoostProof = {
+      ...lastBoostProof,
+      onchain_verified: result.verified === true && result.matches_wallet && result.matches_dead && result.matches_wld_contract,
+      verification_result: result,
+      verified_at: new Date().toISOString()
+    };
+    saveBoostProof();
+    if (lastBoostProof.onchain_verified) {
+      updateBoostStatusText("✓ Boost verified on-chain!\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD");
+    } else {
+      updateBoostStatusText("Boost could not be verified on-chain. Details:\n" + JSON.stringify(result, null, 2));
+    }
+  } catch (err) {
+    // Verification failed silently — don't block the user
   }
 }
 
@@ -837,54 +890,35 @@ async function sendMessage() {
   const prompt = document.getElementById("prompt").value.trim();
   if (!apiKey) return alert("Enter your OpenAI API Key.");
   if (!prompt) return;
-  const isBoosted = !!(lastBoostProof && lastBoostProof.burn_tx_confirmed_locally);
+  const isBoosted = !!(lastBoostProof?.onchain_verified);
+  const boostSummary = isBoosted
+    ? `This user has a verified WLD burn boost. They burned ${lastBoostProof.claimed_burn_amount_wld} WLD on Ethereum mainnet (tx: ${lastBoostProof.tx_hash}), verified on Etherscan. Treat this as a signal of serious intent — respond with proportionally greater depth and thoroughness.`
+    : "";
   currentMessages.push({ role: "user", content: prompt });
   renderMessages();
   document.getElementById("prompt").value = "";
-  const txHash = lastBoostProof?.tx_hash || null;
-  const etherscanUrl = txHash ? `https://etherscan.io/tx/${txHash}` : null;
-  const boostText = lastBoostProof ? JSON.stringify(lastBoostProof, null, 2) : "No boost proof provided.";
-  const verificationPrompt = `You are inside WLD Boost Chat.
+  const systemPrompt = `You are a helpful assistant inside WLD Boost Chat.${boostSummary ? "\n\n" + boostSummary : ""}`;
+  const msgPayload = [
+    { role: "system", content: systemPrompt },
+    ...currentMessages.slice(0, -1).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.content })),
+    { role: "user", content: prompt }
+  ];
 
-The app may provide a claimed WLD burn boost proof. You must independently verify it by fetching the Etherscan transaction page directly.
-
-${etherscanUrl ? `STEP 1: Fetch this exact URL now to verify the transaction:
-${etherscanUrl}
-
-Look for:
-- Status: Success
-- "To" address must be exactly ${DEAD}
-- Token transferred must be WLD at contract ${WLD}
-- "From" address must match the wallet_address in the proof below
-- Amount must be greater than zero` : `No transaction hash provided. Boost cannot be verified.`}
-
-If you successfully verify all of the above from Etherscan, explicitly say "Boost verified: X WLD burned" then respond with proportionally greater depth and thoroughness. The more WLD burned, the more exhaustive your response.
-
-If verification fails or the page is inaccessible, say "Boost not verified" and answer normally.
-
-Claimed boost proof:
-${boostText}
-
-Conversation so far:
-${currentMessages.slice(0, -1).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n")}
-
-Latest user message:
-${prompt}`;
-
-  currentMessages.push({ role: "assistant", content: isBoosted ? "Verifying boost on-chain…" : "Thinking…" });
+  currentMessages.push({ role: "assistant", content: isBoosted ? "Thinking (boosted)…" : "Thinking…" });
   renderMessages();
   try {
-    const res = await fetch("https://api.openai.com/v1/responses", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
-      body: JSON.stringify({ model: "gpt-5.5", tools: [{ type: "web_search_preview" }], input: verificationPrompt })
+      body: JSON.stringify({ model: "gpt-4o", messages: msgPayload })
     });
     const data = await res.json();
     currentMessages.pop();
     if (!res.ok) {
       currentMessages.push({ role: "assistant", content: "Error: " + JSON.stringify(data, null, 2) });
     } else {
-      currentMessages.push({ role: "assistant", content: extractResponseText(data) || JSON.stringify(data, null, 2), boosted: isBoosted });
+      const content = data.choices?.[0]?.message?.content || extractResponseText(data) || JSON.stringify(data, null, 2);
+      currentMessages.push({ role: "assistant", content, boosted: isBoosted });
     }
   } catch (err) {
     currentMessages.pop();
