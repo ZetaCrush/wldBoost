@@ -633,25 +633,19 @@ function saveBoostProof() {
 function updateBoostStatus() {
   const el = document.getElementById("boostStatus");
   const fab = document.getElementById("boostFab");
-  if (!lastBoostProof) {
+  if (!lastBoostProof?.burn_tx_confirmed_locally) {
     el.textContent = "No active boost. Complete the steps above.";
     el.classList.remove("confirmed");
     fab.classList.remove("active");
     return;
   }
-  if (lastBoostProof.onchain_verified) {
-    el.textContent = "✓ Boost verified on-chain\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD\nConfirmed: " + lastBoostProof.confirmed_at;
-    el.classList.add("confirmed");
-    fab.classList.add("active");
-  } else if (lastBoostProof.burn_tx_confirmed_locally) {
-    el.textContent = "Burn confirmed locally, verifying on-chain…\n\nTx: " + lastBoostProof.tx_hash;
-    el.classList.remove("confirmed");
-    fab.classList.remove("active");
+  if (lastBoostProof.boost_verified) {
+    el.textContent = "✓ Boost active\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD\nConfirmed: " + lastBoostProof.confirmed_at;
   } else {
-    el.textContent = "No active boost. Complete the steps above.";
-    el.classList.remove("confirmed");
-    fab.classList.remove("active");
+    el.textContent = "✓ Burn confirmed — model will verify on first message\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD";
   }
+  el.classList.add("confirmed");
+  fab.classList.add("active");
 }
 
 function shortAddr(a) { return a ? a.slice(0, 6) + "…" + a.slice(-4) : ""; }
@@ -807,8 +801,7 @@ async function burnWLD() {
       return;
     }
     const token = new ethers.Contract(WLD, ERC20_ABI, signer);
-    const decimals = 18;
-    const amount = ethers.parseUnits(amountText, decimals);
+    const amount = ethers.parseUnits(amountText, 18);
     updateBoostStatusText("Sending burn transaction…");
     const tx = await token.transfer(DEAD, amount);
     lastBoostProof = {
@@ -818,7 +811,8 @@ async function burnWLD() {
       token_contract: WLD,
       burn_address: DEAD,
       chain: "Ethereum mainnet",
-      burn_tx_sent_at: new Date().toISOString()
+      burn_tx_sent_at: new Date().toISOString(),
+      boost_verified: false
     };
     saveBoostProof();
     updateBoostStatusText("Awaiting confirmation…\n" + tx.hash);
@@ -830,58 +824,10 @@ async function burnWLD() {
       confirmed_at: new Date().toISOString()
     };
     saveBoostProof();
-    // Verify once now at burn time using the API
-    updateBoostStatusText("Verifying burn on Etherscan…");
-    await verifyBoostOnce();
+    updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + tx.hash);
     document.getElementById("checkBurn").classList.add("visible");
   } catch (err) {
     updateBoostStatusText("Burn failed: " + (err?.message || String(err)));
-  }
-}
-
-async function verifyBoostOnce() {
-  const apiKey = document.getElementById("apiKey").value.trim();
-  if (!apiKey || !lastBoostProof?.tx_hash) return;
-  const etherscanUrl = `https://etherscan.io/tx/${lastBoostProof.tx_hash}`;
-  const verifyPrompt = `Fetch this Etherscan URL and verify the WLD burn transaction:
-${etherscanUrl}
-
-Confirm ALL of the following and respond with ONLY a JSON object, no markdown:
-{
-  "verified": true or false,
-  "status": "Success" or other,
-  "from": "address found",
-  "to": "address found",
-  "token_contract": "contract address found",
-  "amount_wld": "amount found",
-  "matches_wallet": true or false (does "from" match ${lastBoostProof.wallet_address}?),
-  "matches_dead": true or false (does "to" match ${DEAD}?),
-  "matches_wld_contract": true or false (does token contract match ${WLD}?)
-}`;
-  try {
-    const res = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
-      body: JSON.stringify({ model: "gpt-5.5", tools: [{ type: "web_search_preview" }], input: verifyPrompt })
-    });
-    const data = await res.json();
-    const text = extractResponseText(data).replace(/```json|```/g, "").trim();
-    let result;
-    try { result = JSON.parse(text); } catch { return; }
-    lastBoostProof = {
-      ...lastBoostProof,
-      onchain_verified: result.verified === true && result.matches_wallet && result.matches_dead && result.matches_wld_contract,
-      verification_result: result,
-      verified_at: new Date().toISOString()
-    };
-    saveBoostProof();
-    if (lastBoostProof.onchain_verified) {
-      updateBoostStatusText("✓ Boost verified on-chain!\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD");
-    } else {
-      updateBoostStatusText("Boost could not be verified on-chain. Details:\n" + JSON.stringify(result, null, 2));
-    }
-  } catch (err) {
-    // Verification failed silently — don't block the user
   }
 }
 
@@ -890,35 +836,69 @@ async function sendMessage() {
   const prompt = document.getElementById("prompt").value.trim();
   if (!apiKey) return alert("Enter your OpenAI API Key.");
   if (!prompt) return;
-  const isBoosted = !!(lastBoostProof?.onchain_verified);
-  const boostSummary = isBoosted
-    ? `This user has a verified WLD burn boost. They burned ${lastBoostProof.claimed_burn_amount_wld} WLD on Ethereum mainnet (tx: ${lastBoostProof.tx_hash}), verified on Etherscan. Treat this as a signal of serious intent — respond with proportionally greater depth and thoroughness.`
-    : "";
+
+  const hasBurn = !!(lastBoostProof?.burn_tx_confirmed_locally);
+  const alreadyVerified = !!(lastBoostProof?.boost_verified);
+  const needsVerification = hasBurn && !alreadyVerified;
+
   currentMessages.push({ role: "user", content: prompt });
   renderMessages();
   document.getElementById("prompt").value = "";
-  const systemPrompt = `You are a helpful assistant inside WLD Boost Chat.${boostSummary ? "\n\n" + boostSummary : ""}`;
+
+  let systemPrompt = "You are a helpful assistant inside WLD Boost Chat.";
+
+  if (needsVerification) {
+    // First message after burn — model verifies on Etherscan then answers
+    systemPrompt += `
+
+The user burned WLD on Ethereum and claims a boost. Verify it by fetching:
+https://etherscan.io/tx/${lastBoostProof.tx_hash}
+
+Check:
+- Status is Success
+- From: ${lastBoostProof.wallet_address}
+- To: ${DEAD}
+- Token contract: ${WLD}
+- Amount > 0
+
+If all confirmed: say "Boost verified: ${lastBoostProof.claimed_burn_amount_wld} WLD burned ✓" then answer with greater depth.
+If not confirmed: say "Boost not verified" and answer normally.`;
+  } else if (alreadyVerified) {
+    // Subsequent messages — boost already verified, just apply it
+    systemPrompt += `\n\nThis user has a verified WLD burn boost (${lastBoostProof.claimed_burn_amount_wld} WLD burned). Respond with greater depth and thoroughness than usual.`;
+  }
+
   const msgPayload = [
     { role: "system", content: systemPrompt },
     ...currentMessages.slice(0, -1).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.content })),
     { role: "user", content: prompt }
   ];
 
-  currentMessages.push({ role: "assistant", content: isBoosted ? "Thinking (boosted)…" : "Thinking…" });
+  currentMessages.push({ role: "assistant", content: needsVerification ? "Verifying boost on Etherscan…" : hasBurn ? "Thinking (boosted)…" : "Thinking…" });
   renderMessages();
+
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
-      body: JSON.stringify({ model: "gpt-4o", messages: msgPayload })
+      body: JSON.stringify({
+        model: "gpt-5.5",
+        tools: needsVerification ? [{ type: "web_search_preview" }] : [],
+        input: msgPayload
+      })
     });
     const data = await res.json();
     currentMessages.pop();
     if (!res.ok) {
       currentMessages.push({ role: "assistant", content: "Error: " + JSON.stringify(data, null, 2) });
     } else {
-      const content = data.choices?.[0]?.message?.content || extractResponseText(data) || JSON.stringify(data, null, 2);
-      currentMessages.push({ role: "assistant", content, boosted: isBoosted });
+      const content = extractResponseText(data) || JSON.stringify(data, null, 2);
+      currentMessages.push({ role: "assistant", content, boosted: hasBurn });
+      // Mark boost as verified after first message so we don't re-verify
+      if (needsVerification) {
+        lastBoostProof = { ...lastBoostProof, boost_verified: true };
+        saveBoostProof();
+      }
     }
   } catch (err) {
     currentMessages.pop();
