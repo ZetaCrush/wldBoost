@@ -872,18 +872,20 @@ async function sendMessage() {
   let systemPrompt = "You are a helpful assistant inside WLD Boost Chat.";
 
   if (needsVerification) {
-    // First message after burn — model verifies on Etherscan then answers
     systemPrompt += `
 
-The user burned WLD on Ethereum and claims a boost. Verify it by fetching:
+The user burned WLD on Ethereum via a smart contract and claims a boost. Verify it by fetching:
 https://etherscan.io/tx/${lastBoostProof.tx_hash}
 
-Check:
-- Status is Success
-- From: ${lastBoostProof.wallet_address}
-- To: ${DEAD}
-- Token contract: ${WLD}
+This transaction calls the WLDBurn contract (${BOOST_CONTRACT}), which internally splits the WLD.
+Look at the "Token Transfers" section on that Etherscan page — NOT the main From/To fields.
+
+Check in the Token Transfers section:
+- From: ${lastBoostProof.wallet_address} (or the contract on their behalf)
+- One transfer To: ${DEAD} (the burn/dead address)
+- Token: WLD at contract ${WLD}
 - Amount > 0
+- Transaction status: Success
 
 If all confirmed: say "Boost verified: ${lastBoostProof.claimed_burn_amount_wld} WLD burned ✓" then answer with greater depth.
 If not confirmed: say "Boost not verified" and answer normally.`;
