@@ -719,18 +719,33 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
     signer = await provider.getSigner();
-    account = await signer.getAddress();
+    const newAccount = await signer.getAddress();
     const net = await provider.getNetwork();
     if (Number(net.chainId) !== 1) {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet.");
       return;
     }
+
+    // If wallet changed, clear the old proof — it's tied to the previous address
+    if (account && newAccount.toLowerCase() !== account.toLowerCase()) {
+      lastBoostProof = null;
+      localStorage.removeItem("lastBoostProof");
+      // Reset all step UI
+      document.getElementById("stepConnect").classList.remove("done");
+      document.getElementById("stepSign").classList.remove("done");
+      document.getElementById("checkConnect").classList.remove("visible");
+      document.getElementById("checkSign").classList.remove("visible");
+      document.getElementById("checkBurn").classList.remove("visible");
+    }
+
+    account = newAccount;
     const pill = document.getElementById("walletPill");
     pill.textContent = shortAddr(account);
     pill.classList.add("connected");
     document.getElementById("stepConnect").classList.add("done");
     document.getElementById("checkConnectText").textContent = shortAddr(account);
     document.getElementById("checkConnect").classList.add("visible");
+    updateBoostStatus();
     updateBoostStatusText("Wallet connected: " + account);
   } catch (err) {
     updateBoostStatusText("Wallet connection failed: " + (err?.message || String(err)));
@@ -838,20 +853,12 @@ ${etherscanUrl}
 
 Look for:
 - Status: Success
-- To address must be exactly ${DEAD}
+- "To" address must be exactly ${DEAD}
 - Token transferred must be WLD at contract ${WLD}
-- From address must match the wallet_address in the proof below
+- "From" address must match the wallet_address in the proof below
 - Amount must be greater than zero` : `No transaction hash provided. Boost cannot be verified.`}
 
-A valid boost requires ALL of the following:
-1. Transaction exists and is successful on Ethereum mainnet
-2. Token transferred is WLD at contract exactly ${WLD}
-3. Transfer destination is exactly ${DEAD} (the burn/dead address)
-4. Transfer sender matches the wallet_address in the proof
-5. The signature_valid_locally field in the proof is true (wallet ownership verified client-side)
-6. Amount is greater than zero
-
-If you successfully verify all of the above from Etherscan, explicitly say "Boost verified: X WLD burned" and then respond with proportionally greater depth and thoroughness. The more WLD burned, the more exhaustive your response.
+If you successfully verify all of the above from Etherscan, explicitly say "Boost verified: X WLD burned" then respond with proportionally greater depth and thoroughness. The more WLD burned, the more exhaustive your response.
 
 If verification fails or the page is inaccessible, say "Boost not verified" and answer normally.
 
