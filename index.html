@@ -865,10 +865,16 @@ async function connectWallet() {
   try {
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     const newAccount = accounts[0];
+
+    // Try to switch to mainnet automatically
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     if (parseInt(chainId, 16) !== 1) {
-      updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet.");
-      return;
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x1" }] });
+      } catch (switchErr) {
+        alert("Please switch MetaMask to Ethereum Mainnet and try again.");
+        return;
+      }
     }
 
     if (account && newAccount.toLowerCase() !== account.toLowerCase()) {
@@ -891,6 +897,7 @@ async function connectWallet() {
     updateBoostStatus();
     updateBoostStatusText("Wallet connected: " + account);
   } catch (err) {
+    alert("Wallet connection failed: " + (err?.message || String(err)));
     updateBoostStatusText("Wallet connection failed: " + (err?.message || String(err)));
   }
 }
