@@ -5,7 +5,6 @@
   <title>WLD Boost Chat</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script data-goatcounter="https://wldboost.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
@@ -541,7 +540,7 @@
         </div>
       </div>
 
-      <div class="step" id="stepContribute">
+      <div class="step">
         <div class="step-header">
           <div class="step-num" style="background:rgba(249,115,22,.1);color:var(--orange);border:1px solid rgba(249,115,22,.25);">♥</div>
           <div class="step-title">Contribute to Protocol <span style="font-size:11px;font-weight:400;color:var(--text-dim)">— optional</span></div>
@@ -595,18 +594,14 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <script>
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
-const BOOST_CONTRACT = "0x7b61e55f4e0e27a5ed0517ddcf14d88a8d48deea";
+const PROTOCOL_WALLET = "0x0F02FD75197678d81f31F5bA938f7EC68FF558F7";
 
 const ERC20_ABI = [
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)"
-];
-
-const BOOST_CONTRACT_ABI = [
-  "function burn(uint256 amount) external"
+  "function transfer(address to, uint256 amount) returns (bool)"
 ];
 
 let provider, signer, account;
@@ -818,9 +813,6 @@ This signature does not authorize any transaction or token transfer.`;
 async function burnWLD() {
   if (!signer || !account) { alert("Connect wallet first."); return; }
   if (!lastBoostProof || !lastBoostProof.signature_valid_locally) { alert("Sign the ownership proof first."); return; }
-  if (BOOST_CONTRACT === "PASTE_DEPLOYED_CONTRACT_ADDRESS_HERE") {
-    alert("Smart contract not yet deployed. Contact the site owner."); return;
-  }
   const amountText = document.getElementById("burnAmount").value.trim();
   if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
   try {
@@ -831,23 +823,12 @@ async function burnWLD() {
     }
     const amount = ethers.utils.parseUnits(amountText, 18);
     const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
-    const boostContract = new ethers.Contract(BOOST_CONTRACT, BOOST_CONTRACT_ABI, signer);
-
-    // Check existing allowance — skip approve if already sufficient
-    const allowance = await wld.allowance(account, BOOST_CONTRACT);
-    if (allowance.lt(amount)) {
-      updateBoostStatusText("Step 1/2: Approving WLD spend… (confirm in MetaMask)");
-      const approveTx = await wld.approve(BOOST_CONTRACT, amount);
-      await approveTx.wait(1);
-    }
-
-    // Single contract call — splits 90/10 atomically
-    updateBoostStatusText("Step 2/2: Burning WLD… (confirm in MetaMask)");
-    const tx = await boostContract.burn(amount);
+    updateBoostStatusText("Burning WLD… confirm in MetaMask");
+    const tx = await wld.transfer(DEAD, amount);
     lastBoostProof = {
       ...lastBoostProof,
       tx_hash: tx.hash,
-      claimed_burn_amount_wld: (Number(amountText) * 0.9).toFixed(6),
+      claimed_burn_amount_wld: amountText,
       token_contract: WLD,
       burn_address: DEAD,
       chain: "Ethereum mainnet",
@@ -866,14 +847,12 @@ async function burnWLD() {
     saveBoostProof();
     updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + tx.hash);
     document.getElementById("stepBurn").classList.add("done");
-    document.getElementById("checkBurnText").textContent = (Number(amountText) * 0.9).toFixed(6) + " WLD burned";
+    document.getElementById("checkBurnText").textContent = amountText + " WLD burned";
     document.getElementById("checkBurn").classList.add("visible");
   } catch (err) {
     updateBoostStatusText("Burn failed: " + (err?.message || String(err)));
   }
 }
-
-const PROTOCOL_WALLET = "0x0F02FD75197678d81f31F5bA938f7EC68FF558F7";
 
 async function contributeToProtocol() {
   if (!signer || !account) { alert("Connect wallet first."); return; }
@@ -890,8 +869,7 @@ async function contributeToProtocol() {
     updateBoostStatusText("Sending contribution… confirm in MetaMask");
     const tx = await wld.transfer(PROTOCOL_WALLET, amount);
     updateBoostStatusText("Awaiting confirmation…\n" + tx.hash);
-    const receipt = await tx.wait(1);
-    // Store contribution in proof so model is aware of it
+    await tx.wait(1);
     lastBoostProof = {
       ...(lastBoostProof || {}),
       contribution_tx_hash: tx.hash,
@@ -907,7 +885,7 @@ async function contributeToProtocol() {
   }
 }
 
-
+async function sendMessage() {
   const apiKey = apiKeyEl.value.trim();
   const prompt = document.getElementById("prompt").value.trim();
   if (!apiKey) return alert("Enter your OpenAI API Key.");
@@ -926,28 +904,24 @@ async function contributeToProtocol() {
   if (needsVerification) {
     systemPrompt += `
 
-The user burned WLD on Ethereum via a smart contract and claims a boost. Verify it by fetching:
+The user burned WLD on Ethereum and claims a boost. Verify it by fetching:
 https://etherscan.io/tx/${lastBoostProof.tx_hash}
 
-This transaction calls the WLDBurn contract (${BOOST_CONTRACT}), which internally splits the WLD.
-Look at the "Token Transfers" section on that Etherscan page — NOT the main From/To fields.
-
-Check in the Token Transfers section:
-- From: ${lastBoostProof.wallet_address} (or the contract on their behalf)
-- One transfer To: ${DEAD} (the burn/dead address)
+Check:
+- Transaction status: Success
+- From: ${lastBoostProof.wallet_address}
+- Token transfer To: ${DEAD} (the burn/dead address)
 - Token: WLD at contract ${WLD}
 - Amount > 0
-- Transaction status: Success
 
 If all confirmed: say "Boost verified: ${lastBoostProof.claimed_burn_amount_wld} WLD burned ✓" then answer with greater depth.
 If not confirmed: say "Boost not verified" and answer normally.`;
   } else if (alreadyVerified) {
-    // Subsequent messages — boost already verified, just apply it
     systemPrompt += `\n\nThis user has a verified WLD burn boost (${lastBoostProof.claimed_burn_amount_wld} WLD burned). Respond with greater depth and thoroughness than usual.`;
   }
 
   if (lastBoostProof?.contribution_tx_hash) {
-    systemPrompt += `\n\nThis user has also made a voluntary contribution of ${lastBoostProof.contribution_amount_wld} WLD to support the WLD Boost Chat protocol (tx: ${lastBoostProof.contribution_tx_hash}). Acknowledge their generosity briefly at the start of your response.`;
+    systemPrompt += `\n\nThis user has also made a voluntary contribution of ${lastBoostProof.contribution_amount_wld} WLD to support the WLD Boost Chat protocol. Acknowledge their generosity briefly.`;
   }
 
   const msgPayload = [
