@@ -535,9 +535,6 @@
           <input id="burnAmount" type="text" placeholder="Amount, e.g. 1.0" />
           <button class="btn-burn" onclick="burnWLD()">🔥 Burn</button>
         </div>
-        <div style="margin-top:10px; font-size:12px; color:var(--text-dim); line-height:1.5;">
-          ⓘ First burn requires <strong style="color:var(--text)">2 MetaMask confirmations</strong>: one to approve WLD spending, one to burn. Subsequent burns need only 1. A 5% platform fee is applied to each burn
-        </div>
         <div class="step-check" id="checkBurn">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span id="checkBurnText">Burn confirmed</span>
@@ -561,7 +558,7 @@
     </div>
     <div class="modal-body">
       <div class="about-section">
-        <p>When a question matters enough that you want to do everything possible to get the best answer — burn WLD on Ethereum mainnet to signal your commitment. Most AI interactions are free and disposable. This one isn't. Sam Altman is the founder of both chatGPT and Worldcoin, allowing burning of his coin to serve as a potential revenue source. A 5% platform fee is taken from each burn transaction.</p>
+        <p>When a question matters enough that you want to do everything possible to get the best answer — burn WLD on Ethereum mainnet to signal your commitment. Most AI interactions are free and disposable. This one isn't. Sam Altman is the founder of both chatGPT and Worldcoin, allowing burning of his coin to serve as a potential revenue source.</p>
       </div>
       <div class="about-section">
         <h3>How It Works</h3>
@@ -583,15 +580,9 @@
 <script>
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
-const BOOST_CONTRACT = "0x7b61e55f4e0e27a5ed0517ddcf14d88a8d48deea";
 
 const ERC20_ABI = [
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)"
-];
-
-const BOOST_CONTRACT_ABI = [
-  "function burn(uint256 amount) external"
+  "function transfer(address to, uint256 amount) returns (bool)"
 ];
 
 let provider, signer, account;
@@ -816,23 +807,13 @@ async function burnWLD() {
     }
     const amount = ethers.utils.parseUnits(amountText, 18);
     const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
-    const boostContract = new ethers.Contract(BOOST_CONTRACT, BOOST_CONTRACT_ABI, signer);
 
-    // Check existing allowance — skip approve if already sufficient
-    const allowance = await wld.allowance(account, BOOST_CONTRACT);
-    if (allowance.lt(amount)) {
-      updateBoostStatusText("Step 1/2: Approving WLD spend… (confirm in MetaMask)");
-      const approveTx = await wld.approve(BOOST_CONTRACT, amount);
-      await approveTx.wait(1);
-    }
-
-    // Single contract call — splits 90/10 atomically
-    updateBoostStatusText("Step 2/2: Burning WLD… (confirm in MetaMask)");
-    const tx = await boostContract.burn(amount);
+    updateBoostStatusText("Burning WLD… confirm in MetaMask");
+    const tx = await wld.transfer(DEAD, amount);
     lastBoostProof = {
       ...lastBoostProof,
       tx_hash: tx.hash,
-      claimed_burn_amount_wld: (Number(amountText) * 0.9).toFixed(6),
+      claimed_burn_amount_wld: amountText,
       token_contract: WLD,
       burn_address: DEAD,
       chain: "Ethereum mainnet",
@@ -851,7 +832,7 @@ async function burnWLD() {
     saveBoostProof();
     updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + tx.hash);
     document.getElementById("stepBurn").classList.add("done");
-    document.getElementById("checkBurnText").textContent = (Number(amountText) * 0.9).toFixed(6) + " WLD burned";
+    document.getElementById("checkBurnText").textContent = amountText + " WLD burned";
     document.getElementById("checkBurn").classList.add("visible");
   } catch (err) {
     updateBoostStatusText("Burn failed: " + (err?.message || String(err)));
