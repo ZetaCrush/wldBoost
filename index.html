@@ -696,7 +696,10 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script type="module">
+import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.min.js";
+window.ethers = ethers;
+</script>
 <script>
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
@@ -837,8 +840,10 @@ function closeAboutModal() { document.getElementById("aboutModal").style.display
 
 async function connectWallet() {
   if (!window.ethereum) { alert("MetaMask not found"); return; }
+  if (!window.ethers) { alert("Loading wallet library, please try again in a moment."); return; }
+  const ethers = window.ethers;
   try {
-    provider = new ethers.providers.Web3Provider(window.ethereum);
+    provider = new ethers.BrowserProvider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
     signer = await provider.getSigner();
     const newAccount = await signer.getAddress();
@@ -893,7 +898,7 @@ Issued At: ${issuedAt}
 
 This signature does not authorize any transaction or token transfer.`;
     const signature = await signer.signMessage(message);
-    const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+    const recoveredAddress = ethers.verifyMessage(message, signature);
     lastBoostProof = {
       ...(lastBoostProof || {}),
       wallet_address: account,
@@ -923,7 +928,7 @@ async function burnWLD() {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet and try again.");
       return;
     }
-    const amount = ethers.utils.parseUnits(amountText, 18);
+    const amount = ethers.parseUnits(amountText, 18);
     const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
     updateBoostStatusText("Burning WLD… confirm in MetaMask");
     const tx = await wld.transfer(DEAD, amount);
@@ -978,7 +983,7 @@ async function contributeToProtocol() {
       document.getElementById("contributeStatus").textContent = "Wrong network. Please switch MetaMask to Ethereum mainnet.";
       return;
     }
-    const amount = ethers.utils.parseUnits(amountText, 18);
+    const amount = ethers.parseUnits(amountText, 18);
     const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
     document.getElementById("contributeStatus").textContent = "Sending contribution… confirm in MetaMask";
     const tx = await wld.transfer(PROTOCOL_WALLET, amount);
