@@ -698,9 +698,7 @@
 
 <script type="module">
 import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.min.js";
-window.ethers = ethers;
-</script>
-<script>
+
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
 const PROTOCOL_WALLET = "0x0F02FD75197678d81f31F5bA938f7EC68FF558F7";
@@ -840,8 +838,6 @@ function closeAboutModal() { document.getElementById("aboutModal").style.display
 
 async function connectWallet() {
   if (!window.ethereum) { alert("MetaMask not found"); return; }
-  if (!window.ethers) { alert("Loading wallet library, please try again in a moment."); return; }
-  const ethers = window.ethers;
   try {
     provider = new ethers.BrowserProvider(window.ethereum);
     await provider.send("eth_requestAccounts", []);
@@ -1102,6 +1098,24 @@ function upsertCurrentChat(latestPrompt) {
   chats = chats.slice(0, 30);
   saveChats();
 }
+
+// Expose functions used in HTML onclick attributes
+window.handleKey = handleKey;
+window.toggleRememberKey = toggleRememberKey;
+window.connectWallet = connectWallet;
+window.openAboutModal = openAboutModal;
+window.closeAboutModal = closeAboutModal;
+window.openBoostModal = openBoostModal;
+window.closeBoostModal = closeBoostModal;
+window.openContributeModal = openContributeModal;
+window.closeContributeModal = closeContributeModal;
+window.signWalletChallenge = signWalletChallenge;
+window.burnWLD = burnWLD;
+window.contributeToProtocol = contributeToProtocol;
+window.newChat = newChat;
+window.sendMessage = sendMessage;
+window.toggleSidebar = toggleSidebar;
+window.closeSidebar = closeSidebar;
 </script>
 </body>
 </html>
