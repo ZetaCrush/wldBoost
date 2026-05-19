@@ -517,13 +517,6 @@
       .sidebar.open { left: 0; }
 
       .topbar { padding: 8px 10px; }
-      .topbar-row-1 {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        width: 100%;
-        min-width: 0;
-      }
 
       .topbar input { font-size: 13px; }
       .wallet-pill { max-width: 80px; font-size: 11px; }
@@ -565,16 +558,14 @@
 
   <div class="main">
     <div class="topbar">
-      <div class="topbar-row-1">
-        <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </button>
-        <input id="apiKey" type="password" placeholder="OpenAI API Key" />
-        <button class="topbar-btn" onclick="toggleRememberKey()" id="rememberBtn">Recall: On</button>
-        <button class="topbar-btn" onclick="connectWallet()">Connect Wallet</button>
-        <div class="wallet-pill" id="walletPill">No wallet</div>
-        <button class="topbar-btn" onclick="openAboutModal()">About</button>
-      </div>
+      <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <input id="apiKey" type="password" placeholder="OpenAI API Key" />
+      <button class="topbar-btn" onclick="toggleRememberKey()" id="rememberBtn">Recall: On</button>
+      <button class="topbar-btn" onclick="connectWallet()">Connect Wallet</button>
+      <div class="wallet-pill" id="walletPill">No wallet</div>
+      <button class="topbar-btn" onclick="openAboutModal()">About</button>
     </div>
 
     <div class="chat" id="chat"></div>
