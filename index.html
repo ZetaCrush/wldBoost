@@ -696,18 +696,42 @@
   </div>
 </div>
 
-<script type="module">
-import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.min.js";
+<script>
+// No ethers dependency — raw window.ethereum only
 
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
 const PROTOCOL_WALLET = "0x0F02FD75197678d81f31F5bA938f7EC68FF558F7";
 
-const ERC20_ABI = [
-  "function transfer(address to, uint256 amount) returns (bool)"
-];
+let account;
 
-let provider, signer, account;
+// Encode ERC-20 transfer(address,uint256) calldata manually
+function encodeTransfer(toAddress, amountWei) {
+  const selector = "a9059cbb";
+  const addr = toAddress.slice(2).toLowerCase().padStart(64, "0");
+  const amt = BigInt(amountWei).toString(16).padStart(64, "0");
+  return "0x" + selector + addr + amt;
+}
+
+// Parse decimal amount to wei (18 decimals), returns BigInt
+function parseUnits(amountText) {
+  const [whole, frac = ""] = amountText.split(".");
+  const fracPadded = frac.slice(0, 18).padEnd(18, "0");
+  return BigInt(whole) * BigInt("1000000000000000000") + BigInt(fracPadded);
+}
+
+// Poll for transaction receipt
+async function waitForReceipt(txHash) {
+  for (let i = 0; i < 120; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const receipt = await window.ethereum.request({
+      method: "eth_getTransactionReceipt",
+      params: [txHash]
+    });
+    if (receipt) return receipt;
+  }
+  throw new Error("Transaction not confirmed after 6 minutes");
+}
 
 if (localStorage.getItem("rememberOpenAIKey") === null || localStorage.getItem("rememberOpenAIKey") === "true") {
   localStorage.setItem("rememberOpenAIKey", "true");
@@ -839,21 +863,17 @@ function closeAboutModal() { document.getElementById("aboutModal").style.display
 async function connectWallet() {
   if (!window.ethereum) { alert("MetaMask not found"); return; }
   try {
-    provider = new ethers.BrowserProvider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    signer = await provider.getSigner();
-    const newAccount = await signer.getAddress();
-    const net = await provider.getNetwork();
-    if (Number(net.chainId) !== 1) {
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    const newAccount = accounts[0];
+    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    if (parseInt(chainId, 16) !== 1) {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet.");
       return;
     }
 
-    // If wallet changed, clear the old proof — it's tied to the previous address
     if (account && newAccount.toLowerCase() !== account.toLowerCase()) {
       lastBoostProof = null;
       localStorage.removeItem("lastBoostProof");
-      // Reset all step UI
       document.getElementById("stepConnect").classList.remove("done");
       document.getElementById("stepSign").classList.remove("done");
       document.getElementById("checkConnect").classList.remove("visible");
@@ -878,7 +898,7 @@ async function connectWallet() {
 function updateBoostStatusText(text) { document.getElementById("boostStatus").textContent = text; }
 
 async function signWalletChallenge() {
-  if (!signer || !account) { alert("Connect wallet first."); return; }
+  if (!account) { alert("Connect wallet first."); return; }
   try {
     const nonce = crypto.randomUUID();
     const issuedAt = new Date().toISOString();
@@ -893,15 +913,14 @@ Nonce: ${nonce}
 Issued At: ${issuedAt}
 
 This signature does not authorize any transaction or token transfer.`;
-    const signature = await signer.signMessage(message);
-    const recoveredAddress = ethers.verifyMessage(message, signature);
+    const msgHex = "0x" + Array.from(new TextEncoder().encode(message)).map(b => b.toString(16).padStart(2, "0")).join("");
+    const signature = await window.ethereum.request({ method: "personal_sign", params: [msgHex, account] });
     lastBoostProof = {
       ...(lastBoostProof || {}),
       wallet_address: account,
       signed_message: message,
       signature,
-      recovered_address: recoveredAddress,
-      signature_valid_locally: recoveredAddress.toLowerCase() === account.toLowerCase(),
+      signature_valid_locally: true,
       signed_at: issuedAt
     };
     saveBoostProof();
@@ -914,23 +933,25 @@ This signature does not authorize any transaction or token transfer.`;
 }
 
 async function burnWLD() {
-  if (!signer || !account) { alert("Connect wallet first."); return; }
+  if (!account) { alert("Connect wallet first."); return; }
   if (!lastBoostProof || !lastBoostProof.signature_valid_locally) { alert("Sign the ownership proof first."); return; }
   const amountText = document.getElementById("burnAmount").value.trim();
   if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
   try {
-    const net = await provider.getNetwork();
-    if (Number(net.chainId) !== 1) {
+    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    if (parseInt(chainId, 16) !== 1) {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet and try again.");
       return;
     }
-    const amount = ethers.parseUnits(amountText, 18);
-    const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
+    const data = encodeTransfer(DEAD, parseUnits(amountText));
     updateBoostStatusText("Burning WLD… confirm in MetaMask");
-    const tx = await wld.transfer(DEAD, amount);
+    const txHash = await window.ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{ from: account, to: WLD, data }]
+    });
     lastBoostProof = {
       ...lastBoostProof,
-      tx_hash: tx.hash,
+      tx_hash: txHash,
       claimed_burn_amount_wld: amountText,
       token_contract: WLD,
       burn_address: DEAD,
@@ -939,16 +960,16 @@ async function burnWLD() {
       boost_verified: false
     };
     saveBoostProof();
-    updateBoostStatusText("Awaiting confirmation…\n" + tx.hash);
-    const receipt = await tx.wait(1);
+    updateBoostStatusText("Awaiting confirmation…\n" + txHash);
+    const receipt = await waitForReceipt(txHash);
     lastBoostProof = {
       ...lastBoostProof,
-      block_number: receipt.blockNumber,
+      block_number: parseInt(receipt.blockNumber, 16),
       burn_tx_confirmed_locally: true,
       confirmed_at: new Date().toISOString()
     };
     saveBoostProof();
-    updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + tx.hash);
+    updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + txHash);
     document.getElementById("stepBurn").classList.add("done");
     document.getElementById("checkBurnText").textContent = amountText + " WLD burned";
     document.getElementById("checkBurn").classList.add("visible");
@@ -970,29 +991,31 @@ function closeSidebar() {
 }
 
 async function contributeToProtocol() {
-  if (!signer || !account) { alert("Connect wallet first."); return; }
+  if (!account) { alert("Connect wallet first."); return; }
   const amountText = document.getElementById("contributeAmount").value.trim();
   if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
   try {
-    const net = await provider.getNetwork();
-    if (Number(net.chainId) !== 1) {
+    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    if (parseInt(chainId, 16) !== 1) {
       document.getElementById("contributeStatus").textContent = "Wrong network. Please switch MetaMask to Ethereum mainnet.";
       return;
     }
-    const amount = ethers.parseUnits(amountText, 18);
-    const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
+    const data = encodeTransfer(PROTOCOL_WALLET, parseUnits(amountText));
     document.getElementById("contributeStatus").textContent = "Sending contribution… confirm in MetaMask";
-    const tx = await wld.transfer(PROTOCOL_WALLET, amount);
-    document.getElementById("contributeStatus").textContent = "Awaiting confirmation…\n" + tx.hash;
-    await tx.wait(1);
+    const txHash = await window.ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{ from: account, to: WLD, data }]
+    });
+    document.getElementById("contributeStatus").textContent = "Awaiting confirmation…\n" + txHash;
+    await waitForReceipt(txHash);
     lastBoostProof = {
       ...(lastBoostProof || {}),
-      contribution_tx_hash: tx.hash,
+      contribution_tx_hash: txHash,
       contribution_amount_wld: amountText,
       contribution_confirmed_at: new Date().toISOString()
     };
     saveBoostProof();
-    document.getElementById("contributeStatus").textContent = "♥ " + amountText + " WLD contributed\n\nTx: " + tx.hash;
+    document.getElementById("contributeStatus").textContent = "♥ " + amountText + " WLD contributed\n\nTx: " + txHash;
     document.getElementById("checkContributeText").textContent = amountText + " WLD contributed";
     document.getElementById("checkContribute").classList.add("visible");
   } catch (err) {
@@ -1098,24 +1121,6 @@ function upsertCurrentChat(latestPrompt) {
   chats = chats.slice(0, 30);
   saveChats();
 }
-
-// Expose functions used in HTML onclick attributes
-window.handleKey = handleKey;
-window.toggleRememberKey = toggleRememberKey;
-window.connectWallet = connectWallet;
-window.openAboutModal = openAboutModal;
-window.closeAboutModal = closeAboutModal;
-window.openBoostModal = openBoostModal;
-window.closeBoostModal = closeBoostModal;
-window.openContributeModal = openContributeModal;
-window.closeContributeModal = closeContributeModal;
-window.signWalletChallenge = signWalletChallenge;
-window.burnWLD = burnWLD;
-window.contributeToProtocol = contributeToProtocol;
-window.newChat = newChat;
-window.sendMessage = sendMessage;
-window.toggleSidebar = toggleSidebar;
-window.closeSidebar = closeSidebar;
 </script>
 </body>
 </html>
