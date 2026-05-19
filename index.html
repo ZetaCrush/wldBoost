@@ -541,6 +541,24 @@
         </div>
       </div>
 
+      <div class="step" id="stepContribute">
+        <div class="step-header">
+          <div class="step-num" style="background:rgba(249,115,22,.1);color:var(--orange);border:1px solid rgba(249,115,22,.25);">♥</div>
+          <div class="step-title">Contribute to Protocol <span style="font-size:11px;font-weight:400;color:var(--text-dim)">— optional</span></div>
+        </div>
+        <div class="burn-row">
+          <input id="contributeAmount" type="text" placeholder="WLD amount, e.g. 0.5" />
+          <button class="btn-burn" style="background:#6366f1;" onclick="contributeToProtocol()">♥ Contribute</button>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--text-dim);line-height:1.5;">
+          Support the protocol. The model will acknowledge your contribution.
+        </div>
+        <div class="step-check" id="checkContribute">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="checkContributeText">Contribution sent</span>
+        </div>
+      </div>
+
       <div class="status-box" id="boostStatus">No active boost. Complete the steps above.</div>
     </div>
     <div class="modal-footer">
@@ -558,7 +576,7 @@
     </div>
     <div class="modal-body">
       <div class="about-section">
-        <p>When a question matters enough that you want to do everything possible to get the best answer — burn WLD on Ethereum mainnet to signal your commitment. Most AI interactions are free and disposable. This one isn't. Sam Altman is the founder of both chatGPT and Worldcoin, allowing burning of his coin to serve as a potential revenue source.</p>
+        <p>When a question matters enough that you want to do everything possible to get the best answer — burn WLD on Ethereum mainnet to signal your commitment. Most AI interactions are free and disposable. This one isn't. Sam Altman is the founder of both chatGPT and Worldcoin, allowing burning of his coin to serve as a potential revenue source. A 5% platform fee is taken from each burn transaction.</p>
       </div>
       <div class="about-section">
         <h3>How It Works</h3>
@@ -580,9 +598,15 @@
 <script>
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
+const BOOST_CONTRACT = "0x7b61e55f4e0e27a5ed0517ddcf14d88a8d48deea";
 
 const ERC20_ABI = [
-  "function transfer(address to, uint256 amount) returns (bool)"
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)"
+];
+
+const BOOST_CONTRACT_ABI = [
+  "function burn(uint256 amount) external"
 ];
 
 let provider, signer, account;
@@ -807,13 +831,23 @@ async function burnWLD() {
     }
     const amount = ethers.utils.parseUnits(amountText, 18);
     const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
+    const boostContract = new ethers.Contract(BOOST_CONTRACT, BOOST_CONTRACT_ABI, signer);
 
-    updateBoostStatusText("Burning WLD… confirm in MetaMask");
-    const tx = await wld.transfer(DEAD, amount);
+    // Check existing allowance — skip approve if already sufficient
+    const allowance = await wld.allowance(account, BOOST_CONTRACT);
+    if (allowance.lt(amount)) {
+      updateBoostStatusText("Step 1/2: Approving WLD spend… (confirm in MetaMask)");
+      const approveTx = await wld.approve(BOOST_CONTRACT, amount);
+      await approveTx.wait(1);
+    }
+
+    // Single contract call — splits 90/10 atomically
+    updateBoostStatusText("Step 2/2: Burning WLD… (confirm in MetaMask)");
+    const tx = await boostContract.burn(amount);
     lastBoostProof = {
       ...lastBoostProof,
       tx_hash: tx.hash,
-      claimed_burn_amount_wld: amountText,
+      claimed_burn_amount_wld: (Number(amountText) * 0.9).toFixed(6),
       token_contract: WLD,
       burn_address: DEAD,
       chain: "Ethereum mainnet",
@@ -832,14 +866,48 @@ async function burnWLD() {
     saveBoostProof();
     updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + tx.hash);
     document.getElementById("stepBurn").classList.add("done");
-    document.getElementById("checkBurnText").textContent = amountText + " WLD burned";
+    document.getElementById("checkBurnText").textContent = (Number(amountText) * 0.9).toFixed(6) + " WLD burned";
     document.getElementById("checkBurn").classList.add("visible");
   } catch (err) {
     updateBoostStatusText("Burn failed: " + (err?.message || String(err)));
   }
 }
 
-async function sendMessage() {
+const PROTOCOL_WALLET = "0x0F02FD75197678d81f31F5bA938f7EC68FF558F7";
+
+async function contributeToProtocol() {
+  if (!signer || !account) { alert("Connect wallet first."); return; }
+  const amountText = document.getElementById("contributeAmount").value.trim();
+  if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
+  try {
+    const net = await provider.getNetwork();
+    if (Number(net.chainId) !== 1) {
+      updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet.");
+      return;
+    }
+    const amount = ethers.utils.parseUnits(amountText, 18);
+    const wld = new ethers.Contract(WLD, ERC20_ABI, signer);
+    updateBoostStatusText("Sending contribution… confirm in MetaMask");
+    const tx = await wld.transfer(PROTOCOL_WALLET, amount);
+    updateBoostStatusText("Awaiting confirmation…\n" + tx.hash);
+    const receipt = await tx.wait(1);
+    // Store contribution in proof so model is aware of it
+    lastBoostProof = {
+      ...(lastBoostProof || {}),
+      contribution_tx_hash: tx.hash,
+      contribution_amount_wld: amountText,
+      contribution_confirmed_at: new Date().toISOString()
+    };
+    saveBoostProof();
+    updateBoostStatusText((lastBoostProof.burn_tx_confirmed_locally ? "✓ Boost active\n\n" : "") + "♥ Contribution of " + amountText + " WLD confirmed\n\nTx: " + tx.hash);
+    document.getElementById("checkContributeText").textContent = amountText + " WLD contributed";
+    document.getElementById("checkContribute").classList.add("visible");
+  } catch (err) {
+    updateBoostStatusText("Contribution failed: " + (err?.message || String(err)));
+  }
+}
+
+
   const apiKey = apiKeyEl.value.trim();
   const prompt = document.getElementById("prompt").value.trim();
   if (!apiKey) return alert("Enter your OpenAI API Key.");
@@ -876,6 +944,10 @@ If not confirmed: say "Boost not verified" and answer normally.`;
   } else if (alreadyVerified) {
     // Subsequent messages — boost already verified, just apply it
     systemPrompt += `\n\nThis user has a verified WLD burn boost (${lastBoostProof.claimed_burn_amount_wld} WLD burned). Respond with greater depth and thoroughness than usual.`;
+  }
+
+  if (lastBoostProof?.contribution_tx_hash) {
+    systemPrompt += `\n\nThis user has also made a voluntary contribution of ${lastBoostProof.contribution_amount_wld} WLD to support the WLD Boost Chat protocol (tx: ${lastBoostProof.contribution_tx_hash}). Acknowledge their generosity briefly at the start of your response.`;
   }
 
   const msgPayload = [
