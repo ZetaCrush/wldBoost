@@ -973,7 +973,7 @@ Check:
 - Token: WLD at contract ${WLD}
 - Amount > 0
 
-If all confirmed: say "Boost verified: ${lastBoostProof.claimed_burn_amount_wld} WLD burned ✓" then answer with greater depth.
+If all confirmed: say "Boost verified: ${lastBoostProof.claimed_burn_amount_wld} WLD burned ✓" then answer by taking this into account.
 If not confirmed: say "Boost not verified" and answer normally.`;
   } else if (alreadyVerified) {
     systemPrompt += `\n\nThis user has a verified WLD burn boost (${lastBoostProof.claimed_burn_amount_wld} WLD burned). Your response should take this as a factor into its thinking`;
