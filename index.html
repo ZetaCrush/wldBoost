@@ -478,12 +478,81 @@
       padding: 1px 5px;
       color: var(--text-dim);
     }
+
+    /* HAMBURGER BUTTON */
+    .hamburger {
+      display: none;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      padding: 4px 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* SIDEBAR OVERLAY (mobile) */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      z-index: 40;
+    }
+    .sidebar-overlay.visible { display: block; }
+
+    /* MOBILE */
+    @media (max-width: 640px) {
+      .hamburger { display: flex; align-items: center; }
+
+      .sidebar {
+        position: fixed;
+        left: -270px;
+        top: 0;
+        bottom: 0;
+        width: 256px;
+        z-index: 50;
+        transition: left .25s ease;
+        box-shadow: 4px 0 24px rgba(0,0,0,.4);
+      }
+      .sidebar.open { left: 0; }
+
+      .topbar { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+
+      .topbar-row-1 {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        min-width: 0;
+      }
+
+      .topbar input { font-size: 13px; }
+      .wallet-pill { max-width: 80px; font-size: 11px; }
+      .topbar-btn { padding: 6px 9px; font-size: 11px; }
+
+      .boost-fab { right: 12px; bottom: 76px; padding: 8px 13px; font-size: 12px; }
+      .contribute-fab { right: 12px; bottom: 122px; padding: 8px 13px; font-size: 12px; }
+
+      .chat { padding: 14px 10px; gap: 12px; }
+      .message { max-width: 100%; font-size: 13px; padding: 11px 13px; }
+
+      .input-area { padding: 8px 10px; gap: 8px; }
+      textarea { height: 48px; font-size: 13px; }
+      .send-btn { height: 48px; padding: 0 14px; font-size: 13px; }
+
+      .modal { padding: 12px; }
+      .modal-box { border-radius: 10px; }
+      .modal-body { padding: 12px 14px; }
+      .modal-header { padding: 14px 16px 10px; }
+      .modal-footer { padding: 0 14px 14px; }
+    }
   </style>
 </head>
 <body>
 
 <div class="app">
-  <div class="sidebar">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+  <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span style="font-size:18px">🔥</span>
       <span class="logo-text">WLD <span>Boost</span> Chat</span>
@@ -497,11 +566,16 @@
 
   <div class="main">
     <div class="topbar">
-      <input id="apiKey" type="password" placeholder="OpenAI API Key" />
-      <button class="topbar-btn" onclick="toggleRememberKey()" id="rememberBtn">Recall: On</button>
-      <button class="topbar-btn" onclick="connectWallet()">Connect Wallet</button>
-      <div class="wallet-pill" id="walletPill">No wallet</div>
-      <button class="topbar-btn" onclick="openAboutModal()">About</button>
+      <div class="topbar-row-1">
+        <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <input id="apiKey" type="password" placeholder="OpenAI API Key" />
+        <button class="topbar-btn" onclick="toggleRememberKey()" id="rememberBtn">Recall: On</button>
+        <button class="topbar-btn" onclick="connectWallet()">Connect Wallet</button>
+        <div class="wallet-pill" id="walletPill">No wallet</div>
+        <button class="topbar-btn" onclick="openAboutModal()">About</button>
+      </div>
     </div>
 
     <div class="chat" id="chat"></div>
@@ -894,6 +968,15 @@ async function burnWLD() {
 
 function openContributeModal() { document.getElementById("contributeModal").style.display = "flex"; }
 function closeContributeModal() { document.getElementById("contributeModal").style.display = "none"; }
+
+function toggleSidebar() {
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("sidebarOverlay").classList.toggle("visible");
+}
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("visible");
+}
 
 async function contributeToProtocol() {
   if (!signer || !account) { alert("Connect wallet first."); return; }
