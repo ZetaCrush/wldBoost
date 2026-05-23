@@ -15,7 +15,6 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'G-LBHYPSGFMF');
     </script>
 
@@ -57,7 +56,6 @@
 
     .app { display: flex; height: 100vh; }
 
-    /* SIDEBAR */
     .sidebar {
       width: 256px;
       background: var(--surface);
@@ -116,7 +114,6 @@
 
     .history-item:hover { background: var(--surface2); color: var(--text); }
 
-    /* MAIN */
     .main {
       flex: 1;
       display: flex;
@@ -125,7 +122,6 @@
       position: relative;
     }
 
-    /* TOPBAR */
     .topbar {
       padding: 10px 14px;
       border-bottom: 1px solid var(--border);
@@ -150,7 +146,6 @@
 
     .wallet-pill.connected { color: var(--green); }
 
-    /* CHAT */
     .chat {
       flex: 1;
       overflow-y: auto;
@@ -199,7 +194,6 @@
       margin-bottom: 8px;
     }
 
-    /* INPUT */
     .input-area {
       padding: 12px 14px;
       border-top: 1px solid var(--border);
@@ -257,7 +251,6 @@
 
     .topbar-btn:hover { color: var(--text); border-color: #444; }
 
-    /* BOOST FAB */
     .boost-fab {
       position: absolute;
       right: 20px;
@@ -284,29 +277,6 @@
       border: 1.5px solid var(--orange);
     }
 
-    .contribute-fab {
-      position: absolute;
-      right: 20px;
-      bottom: 134px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 9px 16px;
-      background: #6366f1;
-      color: #fff;
-      font-size: 13px;
-      font-weight: 700;
-      border-radius: 24px;
-      border: none;
-      cursor: pointer;
-      transition: opacity .15s, transform .1s;
-      z-index: 10;
-      box-shadow: 0 4px 20px rgba(99,102,241,.35);
-    }
-
-    .contribute-fab:hover { opacity: .88; transform: translateY(-1px); }
-
-    /* MODAL */
     .modal {
       position: fixed;
       inset: 0;
@@ -480,7 +450,6 @@
       color: var(--text-dim);
     }
 
-    /* HAMBURGER BUTTON */
     .hamburger {
       display: none;
       background: transparent;
@@ -491,7 +460,6 @@
       flex-shrink: 0;
     }
 
-    /* SIDEBAR OVERLAY (mobile) */
     .sidebar-overlay {
       display: none;
       position: fixed;
@@ -501,7 +469,6 @@
     }
     .sidebar-overlay.visible { display: block; }
 
-    /* MOBILE */
     @media (max-width: 640px) {
       .hamburger { display: flex; align-items: center; }
 
@@ -518,13 +485,11 @@
       .sidebar.open { left: 0; }
 
       .topbar { padding: 8px 10px; }
-
       .topbar input { font-size: 13px; }
       .wallet-pill { max-width: 80px; font-size: 11px; }
       .topbar-btn { padding: 6px 9px; font-size: 11px; }
 
       .boost-fab { right: 12px; bottom: 76px; padding: 8px 13px; font-size: 12px; }
-      .contribute-fab { right: 12px; bottom: 122px; padding: 8px 13px; font-size: 12px; }
 
       .chat { padding: 14px 10px; gap: 12px; }
       .message { max-width: 100%; font-size: 13px; padding: 11px 13px; }
@@ -572,7 +537,6 @@
     <div class="chat" id="chat"></div>
 
     <button class="boost-fab" id="boostFab" onclick="openBoostModal()">🔥 Boost</button>
-    <button class="contribute-fab" onclick="openContributeModal()">♥ Contribute</button>
 
     <div class="input-area">
       <textarea id="prompt" placeholder="Ask anything…" onkeydown="handleKey(event)"></textarea>
@@ -586,7 +550,7 @@
   <div class="modal-box">
     <div class="modal-header">
       <div class="modal-title">🔥 Boost Your Response</div>
-      <div class="modal-subtitle">Burn WorldCoin on Ethereum mainnet. GPT-5.5 independently verifies the transaction on Etherscan before responding.</div>
+      <div class="modal-subtitle">Burn WorldCoin on Ethereum mainnet. GPT-5.5 independently verifies the transaction on Etherscan before responding. A 5% platform fee is applied.</div>
     </div>
     <div class="modal-body">
       <div class="step" id="stepConnect">
@@ -622,6 +586,9 @@
           <input id="burnAmount" type="text" placeholder="Amount, e.g. 1.0" />
           <button class="btn-burn" onclick="burnWLD()">🔥 Burn</button>
         </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--text-dim);line-height:1.5;">
+          First burn requires 2 MetaMask confirmations (approve + burn). Subsequent burns need only 1.
+        </div>
         <div class="step-check" id="checkBurn">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span id="checkBurnText">Burn confirmed</span>
@@ -636,39 +603,6 @@
   </div>
 </div>
 
-<!-- CONTRIBUTE MODAL -->
-<div class="modal" id="contributeModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">♥ Contribute to Protocol</div>
-      <div class="modal-subtitle">Support WLD Boost Chat by sending WLD directly. The model will acknowledge your contribution in chat.</div>
-    </div>
-    <div class="modal-body">
-      <div class="step">
-        <div class="step-header">
-          <div class="step-num" style="background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.3);">♥</div>
-          <div class="step-title">Send WLD</div>
-        </div>
-        <div class="burn-row">
-          <input id="contributeAmount" type="text" placeholder="WLD amount, e.g. 0.5" />
-          <button class="btn-burn" style="background:#6366f1;" onclick="contributeToProtocol()">♥ Contribute</button>
-        </div>
-        <div style="margin-top:8px;font-size:12px;color:var(--text-dim);line-height:1.5;">
-          One MetaMask confirmation. Wallet must be connected.
-        </div>
-        <div class="step-check" id="checkContribute">
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span id="checkContributeText">Contribution sent</span>
-        </div>
-      </div>
-      <div class="status-box" id="contributeStatus">No contribution yet.</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-close-modal" onclick="closeContributeModal()">Close</button>
-    </div>
-  </div>
-</div>
-
 <!-- ABOUT MODAL -->
 <div class="modal" id="aboutModal">
   <div class="modal-box">
@@ -678,12 +612,12 @@
     </div>
     <div class="modal-body">
       <div class="about-section">
-        <p>When a question matters enough that you want to do everything possible to get the best answer — burn WorldCoin on Ethereum mainnet to signal your commitment. Most AI interactions are free and disposable. This one isn't. Sam Altman is the founder of both chatGPT and Worldcoin, allowing burning of his coin to serve as a potential revenue source</p>
+        <p>When a question matters enough that you want to do everything possible to get the best answer — burn WorldCoin on Ethereum mainnet to signal your commitment. Most AI interactions are free and disposable. This one isn't. Sam Altman is the founder of both ChatGPT and Worldcoin, allowing burning of his coin to serve as a potential revenue source.</p>
       </div>
       <div class="about-section">
         <h3>How It Works</h3>
         <p><strong>1. Connect & Sign</strong> — Connect your Ethereum wallet and sign a challenge proving you control the address.</p>
-        <p><strong>2. Burn WLD</strong> — Transfer WLD to the dead address <code>0x000…dEaD</code> on Ethereum mainnet. The tokens are permanently destroyed.</p>
+        <p><strong>2. Burn WLD</strong> — 95% of your WLD is sent to the dead address <code>0x000…dEaD</code> on Ethereum mainnet, permanently destroyed. A 5% platform fee is applied via smart contract.</p>
         <p><strong>3. On-Chain Verification</strong> — GPT-5.5 independently looks up your transaction on Etherscan via web search. It confirms the WLD contract, burn address, amount, and that the sender matches your signed wallet before responding. The boost is cryptographically verifiable, not just claimed.</p>
       </div>
       <div class="about-section">
@@ -698,20 +632,23 @@
 </div>
 
 <script>
-// No ethers dependency — raw window.ethereum only
-
 const WLD = "0x163f8C2467924be0ae7B5347228CABF260318753";
 const DEAD = "0x000000000000000000000000000000000000dEaD";
-const PROTOCOL_WALLET = "0x0F02FD75197678d81f31F5bA938f7EC68FF558F7";
+const BOOST_CONTRACT = "0x7b61e55f4e0e27a5ed0517ddcf14d88a8d48deea";
 
-let account;
-
-// Encode ERC-20 transfer(address,uint256) calldata manually
-function encodeTransfer(toAddress, amountWei) {
-  const selector = "a9059cbb";
-  const addr = toAddress.slice(2).toLowerCase().padStart(64, "0");
+// ABI-encode ERC-20 approve(address,uint256)
+function encodeApprove(spender, amountWei) {
+  const selector = "095ea7b3";
+  const addr = spender.slice(2).toLowerCase().padStart(64, "0");
   const amt = BigInt(amountWei).toString(16).padStart(64, "0");
   return "0x" + selector + addr + amt;
+}
+
+// ABI-encode WLDBurn burn(uint256)
+function encodeBurn(amountWei) {
+  const selector = "44df8e70";
+  const amt = BigInt(amountWei).toString(16).padStart(64, "0");
+  return "0x" + selector + amt;
 }
 
 // Parse decimal amount to wei (18 decimals), returns BigInt
@@ -734,12 +671,26 @@ async function waitForReceipt(txHash) {
   throw new Error("Transaction not confirmed after 6 minutes");
 }
 
+// Check current allowance via eth_call
+async function getAllowance(owner, spender) {
+  const selector = "dd62ed3e";
+  const ownerPadded = owner.slice(2).toLowerCase().padStart(64, "0");
+  const spenderPadded = spender.slice(2).toLowerCase().padStart(64, "0");
+  const data = "0x" + selector + ownerPadded + spenderPadded;
+  const result = await window.ethereum.request({
+    method: "eth_call",
+    params: [{ to: WLD, data }, "latest"]
+  });
+  return BigInt(result);
+}
+
 if (localStorage.getItem("rememberOpenAIKey") === null || localStorage.getItem("rememberOpenAIKey") === "true") {
   localStorage.setItem("rememberOpenAIKey", "true");
 }
 let rememberKey = localStorage.getItem("rememberOpenAIKey") !== "false";
 localStorage.setItem("rememberOpenAIKey", String(rememberKey));
 
+let account;
 let lastBoostProof = JSON.parse(localStorage.getItem("lastBoostProof") || "null");
 let chats = JSON.parse(localStorage.getItem("boostChats") || "[]");
 let currentMessages = [];
@@ -789,9 +740,9 @@ function updateBoostStatus() {
     return;
   }
   if (lastBoostProof.boost_verified) {
-    el.textContent = "✓ Boost active\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD\nConfirmed: " + lastBoostProof.confirmed_at;
+    el.textContent = "✓ Boost active\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD burned\nConfirmed: " + lastBoostProof.confirmed_at;
   } else {
-    el.textContent = "✓ Burn confirmed — model will verify on first message\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD";
+    el.textContent = "✓ Burn confirmed — model will verify on first message\n\nTx: " + lastBoostProof.tx_hash + "\nAmount: " + lastBoostProof.claimed_burn_amount_wld + " WLD burned";
   }
   el.classList.add("confirmed");
   fab.classList.add("active");
@@ -799,7 +750,6 @@ function updateBoostStatus() {
 
 function shortAddr(a) { return a ? a.slice(0, 6) + "…" + a.slice(-4) : ""; }
 
-// Restore step completion UI from saved proof on page load
 function restoreStepState() {
   if (!lastBoostProof) return;
   if (lastBoostProof.wallet_address) {
@@ -821,10 +771,10 @@ function restoreStepState() {
 function renderHistory() {
   const history = document.getElementById("history");
   history.innerHTML = "";
-  chats.forEach((chat, i) => {
+  chats.forEach((chat) => {
     const div = document.createElement("div");
     div.className = "history-item";
-    div.textContent = chat.title || `Chat ${i + 1}`;
+    div.textContent = chat.title || "Chat";
     div.onclick = () => { currentMessages = chat.messages || []; renderMessages(); };
     history.appendChild(div);
   });
@@ -861,13 +811,21 @@ function closeBoostModal() { document.getElementById("boostModal").style.display
 function openAboutModal() { document.getElementById("aboutModal").style.display = "flex"; }
 function closeAboutModal() { document.getElementById("aboutModal").style.display = "none"; }
 
+function toggleSidebar() {
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("sidebarOverlay").classList.toggle("visible");
+}
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("visible");
+}
+
 async function connectWallet() {
   if (!window.ethereum) { alert("MetaMask not found"); return; }
   try {
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     const newAccount = accounts[0];
 
-    // Try to switch to mainnet automatically
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
     if (parseInt(chainId, 16) !== 1) {
       try {
@@ -899,7 +857,6 @@ async function connectWallet() {
     updateBoostStatusText("Wallet connected: " + account);
   } catch (err) {
     alert("Wallet connection failed: " + (err?.message || String(err)));
-    updateBoostStatusText("Wallet connection failed: " + (err?.message || String(err)));
   }
 }
 
@@ -951,16 +908,32 @@ async function burnWLD() {
       updateBoostStatusText("Wrong network. Please switch MetaMask to Ethereum mainnet and try again.");
       return;
     }
-    const data = encodeTransfer(DEAD, parseUnits(amountText));
-    updateBoostStatusText("Burning WLD… confirm in MetaMask");
+    const amountWei = parseUnits(amountText);
+    const MAX_UINT256 = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+    // Check allowance — approve max if needed (one-time)
+    const allowance = await getAllowance(account, BOOST_CONTRACT);
+    if (allowance < amountWei) {
+      updateBoostStatusText("Step 1/2: Approving WLD (one-time)… confirm in MetaMask");
+      const approveTxHash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [{ from: account, to: WLD, data: encodeApprove(BOOST_CONTRACT, MAX_UINT256) }]
+      });
+      updateBoostStatusText("Waiting for approval confirmation…");
+      await waitForReceipt(approveTxHash);
+    }
+
+    // Call burn() on contract — splits 95% to dead, 5% fee atomically
+    updateBoostStatusText((allowance < amountWei ? "Step 2/2: " : "") + "Burning WLD… confirm in MetaMask");
     const txHash = await window.ethereum.request({
       method: "eth_sendTransaction",
-      params: [{ from: account, to: WLD, data }]
+      params: [{ from: account, to: BOOST_CONTRACT, data: encodeBurn(amountWei) }]
     });
+
     lastBoostProof = {
       ...lastBoostProof,
       tx_hash: txHash,
-      claimed_burn_amount_wld: amountText,
+      claimed_burn_amount_wld: (Number(amountText) * 0.95).toFixed(6),
       token_contract: WLD,
       burn_address: DEAD,
       chain: "Ethereum mainnet",
@@ -979,55 +952,10 @@ async function burnWLD() {
     saveBoostProof();
     updateBoostStatusText("✓ Burn confirmed. Send your first message — the model will verify on Etherscan.\n\nTx: " + txHash);
     document.getElementById("stepBurn").classList.add("done");
-    document.getElementById("checkBurnText").textContent = amountText + " WLD burned";
+    document.getElementById("checkBurnText").textContent = (Number(amountText) * 0.95).toFixed(6) + " WLD burned";
     document.getElementById("checkBurn").classList.add("visible");
   } catch (err) {
     updateBoostStatusText("Burn failed: " + (err?.message || String(err)));
-  }
-}
-
-function openContributeModal() { document.getElementById("contributeModal").style.display = "flex"; }
-function closeContributeModal() { document.getElementById("contributeModal").style.display = "none"; }
-
-function toggleSidebar() {
-  document.getElementById("sidebar").classList.toggle("open");
-  document.getElementById("sidebarOverlay").classList.toggle("visible");
-}
-function closeSidebar() {
-  document.getElementById("sidebar").classList.remove("open");
-  document.getElementById("sidebarOverlay").classList.remove("visible");
-}
-
-async function contributeToProtocol() {
-  if (!account) { alert("Connect wallet first."); return; }
-  const amountText = document.getElementById("contributeAmount").value.trim();
-  if (!amountText || Number(amountText) <= 0) { alert("Enter a positive WLD amount."); return; }
-  try {
-    const chainId = await window.ethereum.request({ method: "eth_chainId" });
-    if (parseInt(chainId, 16) !== 1) {
-      document.getElementById("contributeStatus").textContent = "Wrong network. Please switch MetaMask to Ethereum mainnet.";
-      return;
-    }
-    const data = encodeTransfer(PROTOCOL_WALLET, parseUnits(amountText));
-    document.getElementById("contributeStatus").textContent = "Sending contribution… confirm in MetaMask";
-    const txHash = await window.ethereum.request({
-      method: "eth_sendTransaction",
-      params: [{ from: account, to: WLD, data }]
-    });
-    document.getElementById("contributeStatus").textContent = "Awaiting confirmation…\n" + txHash;
-    await waitForReceipt(txHash);
-    lastBoostProof = {
-      ...(lastBoostProof || {}),
-      contribution_tx_hash: txHash,
-      contribution_amount_wld: amountText,
-      contribution_confirmed_at: new Date().toISOString()
-    };
-    saveBoostProof();
-    document.getElementById("contributeStatus").textContent = "♥ " + amountText + " WLD contributed\n\nTx: " + txHash;
-    document.getElementById("checkContributeText").textContent = amountText + " WLD contributed";
-    document.getElementById("checkContribute").classList.add("visible");
-  } catch (err) {
-    document.getElementById("contributeStatus").textContent = "Contribution failed: " + (err?.message || String(err));
   }
 }
 
@@ -1050,24 +978,20 @@ async function sendMessage() {
   if (needsVerification) {
     systemPrompt += `
 
-The user burned WLD on Ethereum and claims a boost. Verify it by fetching:
+The user burned WLD on Ethereum via a smart contract and claims a boost. Verify it by fetching:
 https://etherscan.io/tx/${lastBoostProof.tx_hash}
 
-Check:
+Look at the Token Transfers section on that Etherscan page. Check:
 - Transaction status: Success
 - From: ${lastBoostProof.wallet_address}
-- Token transfer To: ${DEAD} (the burn/dead address)
+- One token transfer To: ${DEAD} (the burn/dead address)
 - Token: WLD at contract ${WLD}
 - Amount > 0
 
-If all confirmed: say "Boost verified: ${lastBoostProof.claimed_burn_amount_wld} WLD burned ✓" then answer by taking this into account (don't mention it but take it into account).
+If all confirmed: say "Boost verified: ${lastBoostProof.claimed_burn_amount_wld} WLD burned ✓" then answer with greater depth and thoroughness.
 If not confirmed: say "Boost not verified" and answer normally.`;
   } else if (alreadyVerified) {
-    systemPrompt += `\n\nThis user has a verified WLD burn boost (${lastBoostProof.claimed_burn_amount_wld} WLD burned). Your response should take this as a factor into its thinking (don't mention it but take it into account)`;
-  }
-
-  if (lastBoostProof?.contribution_tx_hash) {
-    systemPrompt += `\n\nThis user has also made a voluntary contribution of ${lastBoostProof.contribution_amount_wld} WLD to support the WLD Boost Chat protocol`;
+    systemPrompt += `\n\nThis user has a verified WLD burn boost (${lastBoostProof.claimed_burn_amount_wld} WLD burned). Respond with greater depth and thoroughness than usual.`;
   }
 
   const msgPayload = [
@@ -1096,7 +1020,6 @@ If not confirmed: say "Boost not verified" and answer normally.`;
     } else {
       const content = extractResponseText(data) || JSON.stringify(data, null, 2);
       currentMessages.push({ role: "assistant", content, boosted: hasBurn });
-      // Mark boost as verified after first message so we don't re-verify
       if (needsVerification) {
         lastBoostProof = { ...lastBoostProof, boost_verified: true };
         saveBoostProof();
@@ -1124,7 +1047,6 @@ function extractResponseText(data) {
 
 function upsertCurrentChat(latestPrompt) {
   const title = currentMessages.find(m => m.role === "user")?.content?.slice(0, 44) || latestPrompt.slice(0, 44) || "New Chat";
-  // Persist full message objects including boosted flag
   chats.unshift({ title, messages: currentMessages.map(m => ({ role: m.role, content: m.content, boosted: m.boosted || false })), updated_at: new Date().toISOString() });
   chats = chats.slice(0, 30);
   saveChats();
