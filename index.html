@@ -528,7 +528,6 @@
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
       <input id="apiKey" type="password" placeholder="OpenAI API Key" />
-      <button class="topbar-btn" onclick="toggleRememberKey()" id="rememberBtn">Recall: On</button>
       <button class="topbar-btn" onclick="connectWallet()">Connect Wallet</button>
       <div class="wallet-pill" id="walletPill">No wallet</div>
       <button class="topbar-btn" onclick="openAboutModal()">About</button>
@@ -684,20 +683,13 @@ async function getAllowance(owner, spender) {
   return BigInt(result);
 }
 
-if (localStorage.getItem("rememberOpenAIKey") === null || localStorage.getItem("rememberOpenAIKey") === "true") {
-  localStorage.setItem("rememberOpenAIKey", "true");
-}
-let rememberKey = localStorage.getItem("rememberOpenAIKey") !== "false";
-localStorage.setItem("rememberOpenAIKey", String(rememberKey));
-
 let account;
 let lastBoostProof = JSON.parse(localStorage.getItem("lastBoostProof") || "null");
 let chats = JSON.parse(localStorage.getItem("boostChats") || "[]");
 let currentMessages = [];
 
 const apiKeyEl = document.getElementById("apiKey");
-if (rememberKey) apiKeyEl.value = localStorage.getItem("openai_key") || "";
-updateRememberButton();
+apiKeyEl.value = sessionStorage.getItem("openai_key") || "";
 updateBoostStatus();
 restoreStepState();
 renderHistory();
@@ -707,21 +699,9 @@ function handleKey(e) {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 }
 
-function toggleRememberKey() {
-  rememberKey = !rememberKey;
-  localStorage.setItem("rememberOpenAIKey", String(rememberKey));
-  if (!rememberKey) localStorage.removeItem("openai_key");
-  else localStorage.setItem("openai_key", apiKeyEl.value || "");
-  updateRememberButton();
-}
-
 apiKeyEl.addEventListener("input", () => {
-  if (rememberKey) localStorage.setItem("openai_key", apiKeyEl.value || "");
+  sessionStorage.setItem("openai_key", apiKeyEl.value || "");
 });
-
-function updateRememberButton() {
-  document.getElementById("rememberBtn").textContent = rememberKey ? "Recall: On" : "Recall: Off";
-}
 
 function saveChats() { localStorage.setItem("boostChats", JSON.stringify(chats)); }
 
