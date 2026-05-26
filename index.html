@@ -645,7 +645,7 @@ function encodeApprove(spender, amountWei) {
 
 // ABI-encode WLDBurn burn(uint256)
 function encodeBurn(amountWei) {
-  const selector = "44df8e70";
+  const selector = "1d5a4eb6";
   const amt = BigInt(amountWei).toString(16).padStart(64, "0");
   return "0x" + selector + amt;
 }
