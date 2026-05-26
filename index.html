@@ -670,18 +670,6 @@ async function waitForReceipt(txHash) {
   throw new Error("Transaction not confirmed after 6 minutes");
 }
 
-// Check current allowance via eth_call
-async function getAllowance(owner, spender) {
-  const selector = "dd62ed3e";
-  const ownerPadded = owner.slice(2).toLowerCase().padStart(64, "0");
-  const spenderPadded = spender.slice(2).toLowerCase().padStart(64, "0");
-  const data = "0x" + selector + ownerPadded + spenderPadded;
-  const result = await window.ethereum.request({
-    method: "eth_call",
-    params: [{ to: WLD, data }, "latest"]
-  });
-  return BigInt(result);
-}
 
 let account;
 let lastBoostProof = JSON.parse(localStorage.getItem("lastBoostProof") || "null");
@@ -889,22 +877,18 @@ async function burnWLD() {
       return;
     }
     const amountWei = parseUnits(amountText);
-    const MAX_UINT256 = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-    // Check allowance — approve max if needed (one-time)
-    const allowance = await getAllowance(account, BOOST_CONTRACT);
-    if (allowance < amountWei) {
-      updateBoostStatusText("Step 1/2: Approving WLD (one-time)… confirm in MetaMask");
-      const approveTxHash = await window.ethereum.request({
-        method: "eth_sendTransaction",
-        params: [{ from: account, to: WLD, data: encodeApprove(BOOST_CONTRACT, MAX_UINT256) }]
-      });
-      updateBoostStatusText("Waiting for approval confirmation…");
-      await waitForReceipt(approveTxHash);
-    }
+    // Approve exact amount each time
+    updateBoostStatusText("Step 1/2: Approving WLD… confirm in MetaMask");
+    const approveTxHash = await window.ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{ from: account, to: WLD, data: encodeApprove(BOOST_CONTRACT, amountWei) }]
+    });
+    updateBoostStatusText("Waiting for approval confirmation…");
+    await waitForReceipt(approveTxHash);
 
     // Call burn() on contract — splits 95% to dead, 5% fee atomically
-    updateBoostStatusText((allowance < amountWei ? "Step 2/2: " : "") + "Burning WLD… confirm in MetaMask");
+    updateBoostStatusText("Step 2/2: Burning WLD… confirm in MetaMask");
     const txHash = await window.ethereum.request({
       method: "eth_sendTransaction",
       params: [{ from: account, to: BOOST_CONTRACT, data: encodeBurn(amountWei) }]
